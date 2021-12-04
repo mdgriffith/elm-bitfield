@@ -9,6 +9,8 @@ main : BenchmarkProgram
 main =
     program suite
 
+type Rgba = Rgba
+
 myColor =
     BitField.init
         |> BitField.set red 255
@@ -16,33 +18,25 @@ myColor =
         |> BitField.set blue 100
         |> BitField.setPercentage alpha 1
 
+
+red : BitField.BitField Rgba
 red =
-    BitField.field
-        { offset = 0
-        , length = 8
-        }
+    BitField.first 8
+        
 
-
+green : BitField.BitField Rgba
 green =
-    BitField.field
-        { offset = 8
-        , length = 8
-        }
+    red |> BitField.next 8 
 
 
+blue : BitField.BitField Rgba
 blue =
-    BitField.field
-        { offset = 16
-        , length = 8
-        }
+    green |> BitField.next 8 
 
 
+alpha : BitField.BitField Rgba
 alpha =
-    BitField.field
-        { offset = 24
-        , length = 8
-        }
-
+    blue |> BitField.next 8
 
 myColorRecord =
     { red = 255
