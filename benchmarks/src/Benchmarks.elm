@@ -50,7 +50,7 @@ suite : Benchmark
 suite =
     describe "BitField"
         [  describe "Getting a value"
-                [ benchmark "Using BitField" <|
+                [ benchmark "Get: BitField" <|
                     \_ ->
                         let
                             myRed =
@@ -58,7 +58,7 @@ suite =
                                     |> BitField.get red
                         in
                         myRed * 20
-                , benchmark "Using a normal record" <|
+                , benchmark "Get: normal record" <|
                     \_ ->
                         let
                             myRed =
@@ -67,14 +67,22 @@ suite =
                         myRed * 20
                 ]
         ,  describe "Setting a value"
-                [ benchmark "Using BitField" <|
+                [ benchmark "Set: BitField" <|
                     \_ ->
                         myColor
                             |> BitField.set red 34
                
-                , benchmark "Using a normal record" <|
+                , benchmark "Set: normal record" <|
                     \_ ->
                         { myColorRecord | red = 34 }
+                
+                , benchmark "Set: full copy, normal record" <|
+                    \_ ->
+                        { red = 34
+                        , green = myColorRecord.green
+                        , blue = myColorRecord.blue
+                        , alpha = myColorRecord.alpha
+                        }
                         
                 ]
 
