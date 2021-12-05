@@ -8,7 +8,8 @@ module BitField exposing
 
 {-|
 
-    type Rgba = Rgba
+    type Rgba
+        = Rgba
 
     red : BitField Rgba
     red =
@@ -53,23 +54,31 @@ module BitField exposing
 import Bitwise
 
 
+
+{-
+   A Bitfield itself, is a bitfield.
+
+   it captures 2 numbers, offset and length, which are both 32 values
+
+
+       we retrieve offset by doing
+
+           bitfield
+               |> Bitwise.and first16
+
+       and we retrieve offset via
+
+           bitfield
+               |> Bitwise.shiftRightZfBy 16
+
+
+
+-}
+
+
 {-| -}
 type BitField encoding
-    = BitField
-        -- We have a few useful values.
-        -- Let's say we have a value that is offset 2, length 2
-        --  - top, where the top `length` values are flipped and the rest are 0s
-        --    11000000000000000000000000000000
-        --  - mask, where the section is inverted
-        --    00110000000000000000000000000000
-        --    -invertedMask
-        --    11001111111111111111111111111111
-        { offset : Int
-        , length : Int
-        , top : Int
-        , mask : Int
-        , inverted : Int
-        }
+    = BitField Int
 
 
 {-| -}
@@ -120,6 +129,12 @@ ones =
 
 
 {-| -}
+first16 : Int
+first16 =
+    Bitwise.shiftLeftBy 16 1 - 1
+
+
+{-| -}
 custom :
     { offset : Int
     , length : Int
@@ -133,25 +148,18 @@ custom details =
         length =
             if details.length + offset > 32 then
                 32 - offset
-            else 
+
+            else
                 details.length
 
-        top =
-            Bitwise.shiftRightZfBy (32 - length) ones
+        encodedOffset =
+            offset
 
-        mask =
-            top
-                |> Bitwise.shiftLeftBy offset
+        encodedLength =
+            Bitwise.shiftLeftBy 16 length
     in
     BitField
-        { offset = offset
-        , length = length
-        , top = top
-        , mask =
-            mask
-        , inverted =
-            Bitwise.complement mask
-        }
+        (Bitwise.or encodedOffset encodedLength)
 
 
 {-| Create a new bitfield that spans 2 existing bitfields.
@@ -162,13 +170,29 @@ It will start at the lowest offset and end at the farthest point described.
 between : BitField encoding -> BitField encoding -> BitField encoding
 between (BitField one) (BitField two) =
     let
+        oneOffset =
+            one
+                |> Bitwise.and first16
+
+        oneLength =
+            one
+                |> Bitwise.shiftRightZfBy 16
+
+        twoOffset =
+            two
+                |> Bitwise.and first16
+
+        twoLength =
+            two
+                |> Bitwise.shiftRightZfBy 16
+
         lowest =
-            min one.offset two.offset
+            min oneOffset twoOffset
 
         highest =
             max
-                (one.offset + one.length)
-                (two.offset + two.length)
+                (oneOffset + oneLength)
+                (twoOffset + twoLength)
     in
     custom
         { length =
@@ -192,34 +216,76 @@ This is really useful so you don't make a simple addition mistake!
 
 -}
 next : Int -> BitField encoding -> BitField encoding
-next length (BitField f) =
+next nextLength (BitField bitfield) =
+    let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+    in
     custom
-        { length = length
-        , offset = f.offset + f.length
+        { length = nextLength
+        , offset =
+            offset + length
         }
 
 
 {-| -}
 clear : BitField encoding -> Bits encoding -> Bits encoding
-clear (BitField { offset, top, inverted }) (Bits bits) =
+clear (BitField bitfield) (Bits bits) =
+    let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+    in
     bits
         -- clear the target section
-        |> Bitwise.and inverted
+        |> Bitwise.and
+            (ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+                -- mask
+                |> Bitwise.shiftLeftBy offset
+                -- inverse
+                |> Bitwise.complement
+            )
         |> Bits
 
 
 {-| Copy a specific bitfield from one set of bits to another.
 -}
 copy : BitField encoding -> Bits encoding -> Bits encoding -> Bits encoding
-copy (BitField { offset, top, inverted, length, mask }) (Bits one) (Bits destination) =
+copy (BitField bitfield) (Bits one) (Bits destination) =
     let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        mask =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+                -- mask
+                |> Bitwise.shiftLeftBy offset
+
         newSection =
             one
                 |> Bitwise.and mask
     in
     destination
         -- clear the target section
-        |> Bitwise.and inverted
+        |> Bitwise.and (Bitwise.complement mask)
         -- Combine the two
         |> Bitwise.or newSection
         |> Bits
@@ -227,14 +293,33 @@ copy (BitField { offset, top, inverted, length, mask }) (Bits one) (Bits destina
 
 {-| -}
 set : BitField encoding -> Int -> Bits encoding -> Bits encoding
-set (BitField { offset, top, inverted, length }) unboundedVal (Bits bits) =
+set (BitField bitfield) unboundedVal (Bits bits) =
     let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        top =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+
         val =
             min ((2 ^ length) - 1) (max 0 unboundedVal)
     in
     bits
         -- clear the target section
-        |> Bitwise.and inverted
+        |> Bitwise.and
+            (top
+                -- mask
+                |> Bitwise.shiftLeftBy offset
+                -- inverse
+                |> Bitwise.complement
+            )
         -- Add the new data
         |> Bitwise.or
             (Bitwise.shiftLeftBy offset
@@ -245,8 +330,28 @@ set (BitField { offset, top, inverted, length }) unboundedVal (Bits bits) =
 
 {-| -}
 setPercentage : BitField encoding -> Float -> Bits encoding -> Bits encoding
-setPercentage (BitField { offset, top, inverted, length }) percentage (Bits bits) =
+setPercentage (BitField bitfield) percentage (Bits bits) =
     let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        top =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+
+        inverted =
+            top
+                -- mask
+                |> Bitwise.shiftLeftBy offset
+                -- inverted
+                |> Bitwise.complement
+
         total =
             Bitwise.shiftLeftBy length 1 - 1
 
@@ -266,7 +371,21 @@ setPercentage (BitField { offset, top, inverted, length }) percentage (Bits bits
 
 {-| -}
 get : BitField encoding -> Bits encoding -> Int
-get (BitField { offset, top }) (Bits bits) =
+get (BitField bitfield) (Bits bits) =
+    let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        top =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+    in
     bits
         |> Bitwise.shiftRightZfBy offset
         |> Bitwise.and top
@@ -274,7 +393,21 @@ get (BitField { offset, top }) (Bits bits) =
 
 {-| -}
 getFloat : BitField encoding -> Bits encoding -> Float
-getFloat (BitField { offset, top }) (Bits bits) =
+getFloat (BitField bitfield) (Bits bits) =
+    let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        top =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+    in
     bits
         |> Bitwise.shiftRightZfBy offset
         |> Bitwise.and top
@@ -283,8 +416,21 @@ getFloat (BitField { offset, top }) (Bits bits) =
 
 {-| -}
 getPercentage : BitField encoding -> Bits encoding -> Float
-getPercentage (BitField { offset, top, length }) (Bits bits) =
+getPercentage (BitField bitfield) (Bits bits) =
     let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        top =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+
         numerator =
             bits
                 |> Bitwise.shiftRightZfBy offset
@@ -308,9 +454,25 @@ fromInt =
 
 {-| -}
 has : BitField encoding -> Bits encoding -> Bool
-has (BitField bitField) (Bits base) =
-    Bitwise.and bitField.mask base
-        == bitField.mask
+has (BitField bitfield) (Bits base) =
+    let
+        offset =
+            bitfield
+                |> Bitwise.and first16
+
+        length =
+            bitfield
+                |> Bitwise.shiftRightZfBy 16
+
+        mask =
+            ones
+                -- calculate top
+                |> Bitwise.shiftRightZfBy (32 - length)
+                -- mask
+                |> Bitwise.shiftLeftBy offset
+    in
+    Bitwise.and mask base
+        == mask
 
 
 {-| -}
