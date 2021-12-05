@@ -69,7 +69,7 @@ suite =
                         |> BitField.get green
                     )
                     200
-        , fuzz (Fuzz.floatRange 0 1) "Set value is returned via percentage" <|
+        , fuzz (Fuzz.floatRange 0 1) "Set red value is returned via percentage" <|
             \f ->
                 let
                     color : BitField.Bits Rgba
@@ -86,6 +86,36 @@ suite =
                         |> BitField.getPercentage red
                     )
                     f
+        , fuzz (Fuzz.floatRange 0 1) "Set blue value is returned via percentage" <|
+            \f ->
+                let
+                    color : BitField.Bits Rgba
+                    color =
+                        BitField.init
+                            |> BitField.set red 255
+                            |> BitField.set green 255
+                            |> BitField.set blue 100
+                            |> BitField.setPercentage alpha 1
+                in
+                Expect.within (Expect.Absolute 0.002)
+                    (color
+                        |> BitField.setPercentage blue f
+                        |> BitField.getPercentage blue
+                    )
+                    f
+
+         , test "Green oversetting percentage, comes back as 1.0" <|
+            \_ ->
+                let
+                    myColor =
+                        BitField.init
+                            |> BitField.setPercentage green 2.5
+                in
+                Expect.within (Expect.Absolute 0.002)
+                    (myColor
+                        |> BitField.getPercentage green
+                    )
+                    1
         , test "Red comes back correctly" <|
             \_ ->
                 let
@@ -206,25 +236,6 @@ suite =
                         |> BitField.has red
                     )
                     False
-         , test "Detect if a `between` value is set" <|
-            \_ ->
-                let
-                    redBlue = 
-                        BitField.between red blue
-
-                    color : BitField.Bits Rgba
-                    color =
-                        BitField.init
-                            |> BitField.set red 255
-                            |> BitField.set green 255
-                            |> BitField.set blue 100
-                            |> BitField.setPercentage alpha 1
-                in
-                Expect.equal
-                    (color
-                        |> BitField.has redBlue
-                    )
-                    True
         , test "Clearing a field means it's no longer detected" <|
             \_ ->
                 let
