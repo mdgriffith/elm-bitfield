@@ -103,8 +103,7 @@ suite =
                         |> BitField.getPercentage blue
                     )
                     f
-
-         , test "Green oversetting percentage, comes back as 1.0" <|
+        , test "Green oversetting percentage, comes back as 1.0" <|
             \_ ->
                 let
                     myColor =
@@ -129,8 +128,7 @@ suite =
                         |> BitField.get red
                     )
                     128
-
-         , test "Over setting red doesnt bleed into green" <|
+        , test "Over setting red doesnt bleed into green" <|
             \_ ->
                 let
                     myColor =
@@ -182,14 +180,12 @@ suite =
                             |> BitField.set green 255
                             |> BitField.set blue 100
                             |> BitField.setPercentage alpha 1
-
                 in
                 Expect.equal
                     (myColor
                         |> BitField.get blue
                     )
                     100
-
         , test "Alpha comes back correctly" <|
             \_ ->
                 let
@@ -222,14 +218,12 @@ suite =
                         |> BitField.has red
                     )
                     True
-
-         , test "Detect that an empty value is `has false`" <|
+        , test "Detect that an empty value is `has false`" <|
             \_ ->
                 let
                     color : BitField.Bits Rgba
                     color =
                         BitField.init
-                            
                 in
                 Expect.equal
                     (color
@@ -287,6 +281,67 @@ suite =
                         |> BitField.get red
                     )
                     0
+        , test "Copying a field only copies that field" <|
+            \_ ->
+                let
+                    source : BitField.Bits Rgba
+                    source =
+                        BitField.init
+                            |> BitField.set red 255
+                            |> BitField.set green 255
+                            |> BitField.set blue 100
+                            |> BitField.setPercentage alpha 1
+
+                    target =
+                        BitField.init
+                in
+                Expect.equal
+                    (target
+                        |> BitField.copy red source
+                        |> BitField.get red
+                    )
+                    255
+        , test "Copying a field only copies that field, other fields remain blank" <|
+            \_ ->
+                let
+                    source : BitField.Bits Rgba
+                    source =
+                        BitField.init
+                            |> BitField.set red 255
+                            |> BitField.set green 255
+                            |> BitField.set blue 100
+                            |> BitField.setPercentage alpha 1
+
+                    target =
+                        BitField.init
+                in
+                Expect.equal
+                    (target
+                        |> BitField.copy red source
+                        |> BitField.get green
+                    )
+                    0
+        , test "Multiple copies" <|
+            \_ ->
+                let
+                    source : BitField.Bits Rgba
+                    source =
+                        BitField.init
+                            |> BitField.set red 38
+                            |> BitField.set green 136
+                            |> BitField.set blue 100
+                            |> BitField.setPercentage alpha 1
+
+                    target =
+                        BitField.init
+                in
+                Expect.equal
+                    (target
+                        |> BitField.copy red source
+                        |> BitField.copy green source
+                        |> BitField.get red
+                    )
+                    38
         , test "toString: 0 reports all zeros" <|
             \_ ->
                 Expect.equal
